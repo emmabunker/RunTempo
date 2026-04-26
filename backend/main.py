@@ -1,10 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from data.songs import SONG_DATABASE
-from services.playlist import get_matching_tracks
+from routes import spotify_routes, auth_routes
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path=".env")
 
 app = FastAPI()
+app.include_router(spotify_routes.router)
+app.include_router(auth_routes.router)
 
 origins = [
     "http://localhost:5173",
@@ -20,25 +23,14 @@ app.add_middleware(
 )
 
 
-class PlaylistRequest(BaseModel):
-    target_bpm: int = Field(..., ge=60, le=220)
-
-
 @app.get("/")
 def read_root():
+    """ Placeholder """
     return {"message": "hello from backend"}
 
 
 @app.get("/health")
 def health_check():
+    """ Basic health check function. """
+    #TODO: add more functionality
     return {"status": "ok"}
-
-
-@app.post("/generate-playlist")
-def generate_playlist(request: PlaylistRequest):
-    matched_tracks = get_matching_tracks(SONG_DATABASE, request.target_bpm)
-
-    return {
-        "target_bpm": request.target_bpm,
-        "tracks": matched_tracks,
-    }
