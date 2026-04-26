@@ -1,10 +1,37 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import TrackList from "./components/TrackList";
 
 function App() {
   const [targetBpm, setTargetBpm] = useState("");
   const [tracks, setTracks] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
+  const [playlists, setPlaylists] = useState([]);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState("");
+  const [playlistTracks, setPlaylistTracks] = useState([]);
+
+  useEffect(() => {
+  if (!selectedPlaylistId) {
+    return;
+  }
+
+  async function fetchTracks() {
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/spotify/playlists/${selectedPlaylistId}/tracks`
+      );
+
+      const data = await response.json();
+      console.log("Playlist tracks:", data);
+
+      setPlaylistTracks(data.playlist_tracks);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  fetchTracks();
+}, [selectedPlaylistId]);
+
 
   const handleGenerate = async () => {
     setErrorMessage("");
@@ -55,6 +82,21 @@ function App() {
     }
   };
 
+  const handleLoadPlaylists = async () => {
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/spotify/playlists");
+      const data = await response.json();
+
+      console.log(data);
+      setPlaylists(data.playlists);
+    } catch (error) {
+      console.error(error);
+      setErrorMessage("Could not load Spotify playlists.");
+    }
+  };
+
   return (
     <div style={{ padding: "2rem", fontFamily: "Arial, sans-serif" }}>
       <h1>RunTempo</h1>
@@ -75,8 +117,33 @@ function App() {
         onClick={handleLoadSpotifyTracks}
         style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
       >
-        Load My Spotify Tracks
+        Load My Top Tracks
       </button>
+      
+      <button 
+        onClick={handleLoadPlaylists}
+        style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
+      >
+        Load My Playlists
+      </button>
+
+      <br />
+
+      <select
+        value={selectedPlaylistId}
+        onChange={(e) => setSelectedPlaylistId(e.target.value)}
+      >
+        
+        <option value="">Select a playlist</option>
+
+        {playlists.map((playlist) => (
+          <option key={playlist.id} value={playlist.id}>
+            {playlist.name} ({playlist.track_count} tracks)
+          </option>
+        ))}
+      </select>
+
+      <TrackList tracks={playlistTracks} />
 
       <br />
 

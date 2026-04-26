@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from data.songs import SONG_DATABASE
 from services.playlist import get_matching_tracks
 from services.bpm import get_bpm_for_track
+from services.spotify_integration import get_user_playlists, get_playlist_tracks
 import os
 import secrets
 from urllib.parse import urlencode
@@ -31,12 +32,16 @@ app.add_middleware(
 
 @app.get("/auth/spotify/login")
 def spotify_login():
+    """ Endpoint for handling Spotify login. """
     state = secrets.token_urlsafe(16)
 
     scopes = [
         "user-top-read", 
         "playlist-modify-public",
         "playlist-modify-private",
+        "playlist-read-private",
+        "playlist-read-collaborative",
+        "user-library-read",
     ]
 
     query_params = {
@@ -53,6 +58,7 @@ def spotify_login():
 
 @app.get("/auth/spotify/callback")
 def spotify_callback(code: str, state: str):
+    """ Endpoint for handling callback to frontend after Spotify login. """
     client_id = os.getenv("SPOTIFY_CLIENT_ID")
     client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
     redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI")
@@ -84,6 +90,7 @@ def spotify_callback(code: str, state: str):
 
 @app.get("/spotify/top-tracks")
 def get_spotify_top_tracks():
+    """ Endpoint for handling getting top tracks from Spotify. """
     if not spotify_access_token:
         return {"error": "Not connected to Spotify"}
     
@@ -111,6 +118,24 @@ def get_spotify_top_tracks():
     
     return{"tracks": tracks}
 
+@app.get("/spotify/playlists")
+def get_spotify_playlists():
+    """ Endpoint for handling retrieval of Spotify playlists. """
+    if not spotify_access_token:
+        return {"error": "Not connected to Spotify"}
+
+    playlists = get_user_playlists(spotify_access_token)
+
+    return {"playlists": playlists}
+
+@app.get("/spotify/playlists/{playlist_id}/tracks")
+def get_spotify_playlist_tracks(playlist_id: str):
+    if not spotify_access_token:
+        return {"error": "Not connected to Spotify"}
+
+    playlist_tracks = get_playlist_tracks(spotify_access_token, playlist_id)
+
+    return {"playlist_tracks": playlist_tracks}
 
 class PlaylistRequest(BaseModel):
     target_bpm: int = Field(..., ge=60, le=220)
@@ -118,16 +143,20 @@ class PlaylistRequest(BaseModel):
 
 @app.get("/")
 def read_root():
+    """ Placeholder """
     return {"message": "hello from backend"}
 
 
 @app.get("/health")
 def health_check():
+    """ Basic health check function. """
+    #TODO: add more functionality
     return {"status": "ok"}
 
 
 @app.post("/generate-playlist")
 def generate_playlist(request: PlaylistRequest):
+    """ Generates a playlist based on dummy song database. """
     matched_tracks = get_matching_tracks(SONG_DATABASE, request.target_bpm)
 
     return {
@@ -137,6 +166,7 @@ def generate_playlist(request: PlaylistRequest):
 
 @app.post("/spotify/generate-playlist")
 def generate_spotify_playlist(request: PlaylistRequest):
+    """ Generates a playlist based on Spotify tracks. """
     if not spotify_access_token:
         return {"error": "Not connected to Spotify"}
     
