@@ -18,7 +18,7 @@ function App() {
     }
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/generate-playlist", {
+      const response = await fetch("http://127.0.0.1:8000/spotify/generate-playlist", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -41,10 +41,44 @@ function App() {
     }
   };
 
+  const handleLoadSpotifyTracks = async () => {
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/spotify/top-tracks");
+      const data = await response.json();
+
+      setTracks(data.tracks)
+    } catch (error) {
+      console.error(error);
+      setErrorMessage("Could not load Spotify tracks.");
+    }
+  };
+
   return (
     <div style={{ padding: "2rem", fontFamily: "Arial, sans-serif" }}>
       <h1>RunTempo</h1>
       <p>Generate a running playlist based on your target tempo.</p>
+
+      <button
+        onClick={() => {
+          window.location.href = "http://127.0.0.1:8000/auth/spotify/login";
+        }}
+        style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
+      >
+        Connect Spotify
+      </button>
+
+      <br />
+
+      <button
+        onClick={handleLoadSpotifyTracks}
+        style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
+      >
+        Load My Spotify Tracks
+      </button>
+
+      <br />
 
       <label htmlFor="bpm-input">Target BPM:</label>
       <br />

@@ -4,6 +4,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from data.songs import SONG_DATABASE
 from services.playlist import get_matching_tracks
+from services.bpm import get_bpm_for_track
 import os
 import secrets
 from urllib.parse import urlencode
@@ -13,6 +14,7 @@ import requests
 
 load_dotenv(dotenv_path=".env")
 app = FastAPI()
+spotify_access_token = None
 
 origins = [
     "http://localhost:5173",
@@ -75,32 +77,40 @@ def spotify_callback(code: str, state: str):
     response = requests.post(token_url, headers=headers, data=data)
     token_data = response.json()
     access_token = token_data.get("access_token")
+    global spotify_access_token
+    spotify_access_token = access_token
 
-    profile_response = requests.get(
+    return RedirectResponse("http://localhost:5173")
+
+@app.get("/spotify/top-tracks")
+def get_spotify_top_tracks():
+    if not spotify_access_token:
+        return {"error": "Not connected to Spotify"}
+    
+    response = requests.get(
         "https://api.spotify.com/v1/me/top/tracks",
-        headers={"Authorization": f"Bearer {access_token}"},
+        headers={"Authorization": f"Bearer {spotify_access_token}"},
     )
 
-    profile_data = profile_response.json()
-    with open("output.json", "w") as f:
-        print(profile_data, file=f)
+    profile_data = response.json()
 
-    items = profile_data.get("items", [])
+    tracks = []
+    for track in profile_data.get("items", [])[:5]:
+        artist_list = track.get("artists", [])
+        artist_names = [artist["name"] for artist in artist_list] if artist_list else ["Unknown"]
+        bpm = get_bpm_for_track(track["name"], artist_names)
 
-    if not items:
+        tracks.append({
+            "title": track["name"],
+            "artist": artist_names,
+            "bpm": bpm
+        })
+
+    if not tracks:
         return {"message": "No tracks found"}
+    
+    return{"tracks": tracks}
 
-    first_track = items[0]
-    track_name = first_track.get("name")
-    artist_list = first_track.get("artists", [])
-    artist_name = artist_list[0]["name"] if artist_list else "Unknown"
-
-    return {
-    "message": "Spotify auth complete",
-    "track_name": track_name,
-    "track_artist": artist_name,
-    "has_access_token": access_token is not None,
-}
 
 class PlaylistRequest(BaseModel):
     target_bpm: int = Field(..., ge=60, le=220)
@@ -119,6 +129,40 @@ def health_check():
 @app.post("/generate-playlist")
 def generate_playlist(request: PlaylistRequest):
     matched_tracks = get_matching_tracks(SONG_DATABASE, request.target_bpm)
+
+    return {
+        "target_bpm": request.target_bpm,
+        "tracks": matched_tracks,
+    }
+
+@app.post("/spotify/generate-playlist")
+def generate_spotify_playlist(request: PlaylistRequest):
+    if not spotify_access_token:
+        return {"error": "Not connected to Spotify"}
+    
+    response = requests.get(
+        "https://api.spotify.com/v1/me/top/tracks",
+        headers={"Authorization": f"Bearer {spotify_access_token}"},
+    )
+
+    profile_data = response.json()
+
+    tracks = []
+    for track in profile_data.get("items", [])[:5]:
+        artist_list = track.get("artists", [])
+        artist_names = [artist["name"] for artist in artist_list] if artist_list else ["Unknown"]
+        bpm = get_bpm_for_track(track["name"], artist_names)
+
+        tracks.append({
+            "title": track["name"],
+            "artist": artist_names,
+            "bpm": bpm
+        })
+
+    if not tracks:
+        return {"message": "No tracks found"}
+    
+    matched_tracks = get_matching_tracks(tracks, request.target_bpm)
 
     return {
         "target_bpm": request.target_bpm,
