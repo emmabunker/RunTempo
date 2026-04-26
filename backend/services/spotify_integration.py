@@ -1,4 +1,11 @@
 import requests
+from services.bpm import get_bpm_for_track
+
+def get_artist_names(track):
+    artist_list = track.get("artists", [])
+    artist_names = [artist["name"] for artist in artist_list] if artist_list else ["Unknown"]
+    return artist_names
+
 
 def get_user_playlists(access_token):
     response = requests.get(
@@ -26,21 +33,58 @@ def get_playlist_tracks(access_token, playlist_id):
     )
 
     data = response.json()
-
     tracks = []
 
     for item in data.get("items", []):
         track = item.get("track")
-
         if not track:
             continue
 
-        artist_list = track.get("artists", [])
-        artist_names = [artist["name"] for artist in artist_list] if artist_list else ["Unknown"]
+        artist_names = get_artist_names(track)
         tracks.append({
             "title": track["name"],
-            "artists": artist_names
+            "artist": artist_names
         })
 
     return tracks
+
+def get_top_tracks(access_token):
+    response = requests.get(
+        "https://api.spotify.com/v1/me/top/tracks",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    profile_data = response.json()
+    tracks = []
+
+    for track in profile_data.get("items", [])[:5]:
+        artist_names = get_artist_names(track)
+
+        tracks.append({
+            "title": track["name"],
+            "artist": artist_names
+        })
+        
+    if not tracks:
+            return {"message": "No tracks found"}
+    
+    tracks = add_bpm_to_tracks(tracks)
+    
+    return tracks
+
+def add_bpm_to_tracks(tracks):
+    track_list = []
+
+    for track in tracks:
+        title = track["title"]
+        artist_names = track["artist"]
+        bpm = get_bpm_for_track(title, artist_names)
+
+        track_list.append({
+            "title": title,
+            "artist": artist_names,
+            "bpm": bpm
+        })
+        
+    return track_list
     

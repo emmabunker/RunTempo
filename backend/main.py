@@ -2,20 +2,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
-from data.songs import SONG_DATABASE
-from services.playlist import get_matching_tracks
-from services.bpm import get_bpm_for_track
-from services.spotify_integration import get_user_playlists, get_playlist_tracks
+from services import auth_state
 import os
 import secrets
 from urllib.parse import urlencode
 from dotenv import load_dotenv
 import base64
 import requests
+from routes import spotify_routes
 
 load_dotenv(dotenv_path=".env")
 app = FastAPI()
-spotify_access_token = None
+app.include_router(spotify_routes.router)
 
 origins = [
     "http://localhost:5173",
@@ -83,62 +81,9 @@ def spotify_callback(code: str, state: str):
     response = requests.post(token_url, headers=headers, data=data)
     token_data = response.json()
     access_token = token_data.get("access_token")
-    global spotify_access_token
-    spotify_access_token = access_token
+    auth_state.spotify_access_token = access_token
 
     return RedirectResponse("http://localhost:5173")
-
-@app.get("/spotify/top-tracks")
-def get_spotify_top_tracks():
-    """ Endpoint for handling getting top tracks from Spotify. """
-    if not spotify_access_token:
-        return {"error": "Not connected to Spotify"}
-    
-    response = requests.get(
-        "https://api.spotify.com/v1/me/top/tracks",
-        headers={"Authorization": f"Bearer {spotify_access_token}"},
-    )
-
-    profile_data = response.json()
-
-    tracks = []
-    for track in profile_data.get("items", [])[:5]:
-        artist_list = track.get("artists", [])
-        artist_names = [artist["name"] for artist in artist_list] if artist_list else ["Unknown"]
-        bpm = get_bpm_for_track(track["name"], artist_names)
-
-        tracks.append({
-            "title": track["name"],
-            "artist": artist_names,
-            "bpm": bpm
-        })
-
-    if not tracks:
-        return {"message": "No tracks found"}
-    
-    return{"tracks": tracks}
-
-@app.get("/spotify/playlists")
-def get_spotify_playlists():
-    """ Endpoint for handling retrieval of Spotify playlists. """
-    if not spotify_access_token:
-        return {"error": "Not connected to Spotify"}
-
-    playlists = get_user_playlists(spotify_access_token)
-
-    return {"playlists": playlists}
-
-@app.get("/spotify/playlists/{playlist_id}/tracks")
-def get_spotify_playlist_tracks(playlist_id: str):
-    if not spotify_access_token:
-        return {"error": "Not connected to Spotify"}
-
-    playlist_tracks = get_playlist_tracks(spotify_access_token, playlist_id)
-
-    return {"playlist_tracks": playlist_tracks}
-
-class PlaylistRequest(BaseModel):
-    target_bpm: int = Field(..., ge=60, le=220)
 
 
 @app.get("/")
@@ -152,49 +97,3 @@ def health_check():
     """ Basic health check function. """
     #TODO: add more functionality
     return {"status": "ok"}
-
-
-@app.post("/generate-playlist")
-def generate_playlist(request: PlaylistRequest):
-    """ Generates a playlist based on dummy song database. """
-    matched_tracks = get_matching_tracks(SONG_DATABASE, request.target_bpm)
-
-    return {
-        "target_bpm": request.target_bpm,
-        "tracks": matched_tracks,
-    }
-
-@app.post("/spotify/generate-playlist")
-def generate_spotify_playlist(request: PlaylistRequest):
-    """ Generates a playlist based on Spotify tracks. """
-    if not spotify_access_token:
-        return {"error": "Not connected to Spotify"}
-    
-    response = requests.get(
-        "https://api.spotify.com/v1/me/top/tracks",
-        headers={"Authorization": f"Bearer {spotify_access_token}"},
-    )
-
-    profile_data = response.json()
-
-    tracks = []
-    for track in profile_data.get("items", [])[:5]:
-        artist_list = track.get("artists", [])
-        artist_names = [artist["name"] for artist in artist_list] if artist_list else ["Unknown"]
-        bpm = get_bpm_for_track(track["name"], artist_names)
-
-        tracks.append({
-            "title": track["name"],
-            "artist": artist_names,
-            "bpm": bpm
-        })
-
-    if not tracks:
-        return {"message": "No tracks found"}
-    
-    matched_tracks = get_matching_tracks(tracks, request.target_bpm)
-
-    return {
-        "target_bpm": request.target_bpm,
-        "tracks": matched_tracks,
-    }

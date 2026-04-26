@@ -44,6 +44,11 @@ function App() {
       return;
     }
 
+    if (!selectedPlaylistId) {
+      setErrorMessage("Please select a playlist first.");
+      return;
+    }
+
     try {
       const response = await fetch("http://127.0.0.1:8000/spotify/generate-playlist", {
         method: "POST",
@@ -52,6 +57,7 @@ function App() {
         },
         body: JSON.stringify({
           target_bpm: Number(targetBpm),
+          playlist_id: selectedPlaylistId,
         }),
       });
 
@@ -101,7 +107,7 @@ function App() {
     <div style={{ padding: "2rem", fontFamily: "Arial, sans-serif" }}>
       <h1>RunTempo</h1>
       <p>Generate a running playlist based on your target tempo.</p>
-
+      
       <button
         onClick={() => {
           window.location.href = "http://127.0.0.1:8000/auth/spotify/login";
@@ -143,8 +149,6 @@ function App() {
         ))}
       </select>
 
-      <TrackList tracks={playlistTracks} />
-
       <br />
 
       <label htmlFor="bpm-input">Target BPM:</label>
@@ -167,6 +171,7 @@ function App() {
       )}
 
       <TrackList tracks={tracks} />
+      <TrackList tracks={playlistTracks} />
     </div>
   );
 }

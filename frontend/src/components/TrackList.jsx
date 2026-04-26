@@ -9,7 +9,7 @@ function TrackList({ tracks }) {
             <ul>
                 {tracks.map((track, index) => (
                     <li key={index}>
-                        {track.title} - {Array.isArray(track.artists) ? track.artists.join(", ") : track.artists} 
+                        {track.title} - {Array.isArray(track.artist) ? track.artist.join(", ") : track.artist} 
                         {track.bpm && ` (${track.bpm} BPM)`}
                     </li>
                 ))}

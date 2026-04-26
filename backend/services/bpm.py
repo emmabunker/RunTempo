@@ -1,3 +1,4 @@
+import random
 LOCAL_BPM_LOOKUP = {
     ("my moon my man", "feist"): 124,
     ("don't fade away", "beach fossils"): 128,
@@ -16,7 +17,8 @@ def get_bpm_for_track(title, artists):
         normalized_artist = normalize_text(artist)
 
         lookup_key = (normalized_title, normalized_artist)
-        
+
         if lookup_key in LOCAL_BPM_LOOKUP:
             return LOCAL_BPM_LOOKUP[lookup_key]
-
+        
+    return random.randint(60, 220)
